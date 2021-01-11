@@ -1,0 +1,299 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sensing the Landscape</title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta property="og:title" content="">
+  <meta property="og:type" content="">
+  <meta property="og:url" content="">
+  <meta property="og:image" content="">
+
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="apple-touch-icon" href="icon.png">
+  <!-- Place favicon.ico in the root directory -->
+
+  <link rel="stylesheet" href="css/normalize.css">
+<!--  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">-->
+
+  <link rel="stylesheet" href="css/main.css">
+
+  <meta name="theme-color" content="#fafafa">
+
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://unpkg.com/d3-3d/build/d3-3d.min.js"></script>
+  <!--<script src="js/waving.js"></script>-->
+  <script src="js/main.js"></script>
+  <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+
+</head>
+
+<body style="padding: 5vh">
+  <h1>Sensing the Landscape</h1>
+  <h2>Mapping the Dynamic Atmospheric Environment of the Urban Fabric </h2>
+  <div id="chart1"></div>
+  <div id="chart2">
+  </div>
+
+  <style type="text/css">
+    button {
+      position: absolute;
+      right: 5vh;
+      top: 5vh;
+    }
+    div.tooltip {
+      position: absolute;
+      text-align: center;
+      width: auto;
+      height: 28px;
+      padding: 2px;
+      font: 12px sans-serif;
+      background: #ffffff;
+      border: 0px;
+      opacity: 0.5;
+      border-radius: 3px;
+      pointer-events: none;
+    }
+  </style>
+  <button type="button" class="btn btn-light">update</button>
+
+  <script>
+    var origin = [350, 350], j = 10, scale = 20, scatter = [], yLine = [], xGrid = [], beta = 0, alpha = 0, key = function(d){ return d.id; }, startAngle = Math.PI/4;
+    var	svg = d3.select("#chart1")
+      .append("svg")
+      .attr("width", 80+"vw")
+      .attr("height", 80+"vh")
+      .call(d3.drag()
+        .on('drag', dragged)
+        .on('start', dragStart)
+        .on('end', dragEnd))
+    var color = d3.scaleLinear().domain([4,8]).range(["#0055ff", "#a9ff00"])
+    var mx, my, mouseX, mouseY;
+
+    var grid3d = d3._3d()
+      .shape('GRID', 20)
+      .origin(origin)
+      .rotateY( startAngle)
+      .rotateX(-startAngle)
+      .scale(scale);
+
+    var point3d = d3._3d()
+      .x(function(d){ return d.x; })
+      .y(function(d){ return -d.y; })
+      .z(function(d){ return d.z; })
+      .origin(origin)
+      .rotateY( startAngle)
+      .rotateX(-startAngle)
+      .scale(scale);
+
+    var yScale3d = d3._3d()
+      .shape('LINE_STRIP')
+      .origin(origin)
+      .rotateY(startAngle)
+      .rotateX(-startAngle)
+      .scale(20);
+
+    // Define the div for the tooltip
+    var div = d3.select("body").append("div")
+      .attr("class", "tooltip")
+      .style("opacity", 0);
+
+    function processData(data, tt){
+
+      /* ----------- GRID ----------- */
+
+      var xGrid = svg.selectAll('path.grid').data(data[0], key);
+
+      xGrid
+        .enter()
+        .append('path')
+        .attr('class', '_3d grid')
+        .merge(xGrid)
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 0.1)
+        .attr('stroke-opacity', 0.3)
+        .attr('fill', function(d){ return d.ccw ? 'lightgrey' : '#ffffff'; })
+        .attr('fill-opacity', 0)
+        .attr('d', grid3d.draw);
+
+      xGrid.exit().remove();
+
+      /* ----------- POINTS ----------- */
+
+      var points = svg.selectAll('circle').data(data[1], key);
+
+      points
+        .enter()
+        .append('circle')
+        .attr('class', '_3d')
+        .attr('opacity', 0)
+        .attr('cx', posPointX)
+        .attr('cy', posPointY)
+
+        .merge(points)
+        .transition().duration(tt)
+        .attr('r', 2)
+        // .attr('stroke', function(d){ return '#ffffff'; })
+        .attr('fill', function(d){ return color(d.y); })
+        .attr('opacity', 0.8)
+        .attr('cx', posPointX)
+        .attr('cy', posPointY)
+
+      points
+        .on("mouseover", function(d) {
+          d3.select(this)
+            .attr('stroke-width', '4px')
+            .attr('stroke', 'rgb(255,255,255)')
+
+          div.transition()
+            .duration(200)
+            .style("opacity", .9);
+          div	.html("Temperature: "+d.y + "°C <br/> Point No." + d.id)
+            .style("left", (d3.event.pageX) + "px")
+            .style("top", (d3.event.pageY - 28) + "px");
+        })
+        .on("mouseout", function(event, d) {
+          d3.select(this)
+            .attr('stroke-width', '0px')
+
+          div.transition()
+            .duration(500)
+            .style("opacity", 0);
+        })
+        //create update transition
+
+      points.exit().remove();
+
+
+
+      /* ----------- y-Scale ----------- */
+      var yScale = svg.selectAll('path.yScale').data(data[2]);
+
+      console.log(data[2])
+
+      yScale
+        .enter()
+        .append('path')
+        .attr('class', '_3d yScale')
+        .merge(yScale)
+        .attr('stroke', 'white')
+        .attr('stroke-width', .5)
+        .attr('d', yScale3d.draw);
+
+      yScale.exit().remove();
+
+      /* ----------- y-Scale Text ----------- */
+
+      var yText = svg.selectAll('text.yText').data(data[2][0]);
+      console.log(data[2][0]);
+
+      yText
+        .enter()
+        .append('text')
+        .attr('class', '_3d yText')
+        .attr('dx', '.3em')
+        .merge(yText)
+        .each(function(d){
+          d.centroid = {x: d.rotated.x, y: d.rotated.y, z: d.rotated.z};
+        })
+        .attr('x', function(d){ return d.projected.x; })
+        .attr('y', function(d){ return d.projected.y; })
+        .attr('fill', 'white')
+        .text(function(d){ return d[1]*(-1) + "°C";})
+
+
+      var label = svg.selectAll('text.label').data(data[2][0]);
+      label
+        .enter()
+        .append('text')
+        .attr('class', '_3d label')
+        .attr('dx', '.3em')
+        .merge(label)
+        .attr('x', data[2][0][0].projected.x)
+        .attr('y', data[2][0][0].projected.y)
+        .attr("dy", "10em")
+        .style("text-anchor", "left")
+        .attr('fill', 'white')
+        .text("Temperature")
+        // .attr("transform", "rotate(-45)")
+
+
+
+      yText.exit().remove();
+
+      d3.selectAll('._3d').sort(d3._3d().sort);
+    }
+
+    function posPointX(d){
+      return d.projected.x;
+    }
+
+    function posPointY(d){
+      return d.projected.y;
+    }
+
+    function init(){
+      var cnt = 0;
+      //round num
+      var f = d3.format(".1f");
+      xGrid = [], scatter = [], yLine = [];
+      for(var z = -j; z < j; z++){
+        for(var x = -j; x < j; x++){
+          var y_original = d3.randomUniform(4, 8)();
+          xGrid.push([x, 0, z]);
+          scatter.push({x: x, y: f(y_original), z: z, id: + cnt++});
+        }
+      }
+
+      d3.range(0, 11, 1).forEach(function(d){ yLine.push([-j, -d, -j]); });
+
+      var data = [
+        grid3d(xGrid),
+        point3d(scatter),
+        yScale3d([yLine])
+      ];
+      processData(data, 1000);
+    }
+
+    function dragStart(){
+      mx = d3.event.x;
+      my = d3.event.y;
+    }
+
+    function dragged(){
+      mouseX = mouseX || 0;
+      mouseY = mouseY || 0;
+      beta   = (d3.event.x - mx + mouseX) * Math.PI / 230 ;
+      alpha  = (d3.event.y - my + mouseY) * Math.PI / 230  * (-1);
+      var data = [
+        grid3d.rotateY(beta + startAngle).rotateX(alpha - startAngle)(xGrid),
+        point3d.rotateY(beta + startAngle).rotateX(alpha - startAngle)(scatter),
+        yScale3d.rotateY(beta + startAngle).rotateX(alpha - startAngle)([yLine]),
+      ];
+      processData(data, 0);
+    }
+
+    function dragEnd(){
+      mouseX = d3.event.x - mx + mouseX;
+      mouseY = d3.event.y - my + mouseY;
+    }
+
+    d3.selectAll('button').on('click', init);
+
+    init();
+  </script>
+
+  <!-- Google Analytics: change UA-XXXXX-Y to be your site's ID. -->
+  <script>
+    window.ga = function () { ga.q.push(arguments) }; ga.q = []; ga.l = +new Date;
+    ga('create', 'UA-XXXXX-Y', 'auto'); ga('set', 'anonymizeIp', true); ga('set', 'transport', 'beacon'); ga('send', 'pageview')
+  </script>
+  <script src="https://www.google-analytics.com/analytics.js" async></script>
+</body>
+
+</html>
